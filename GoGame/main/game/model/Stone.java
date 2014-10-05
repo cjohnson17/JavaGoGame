@@ -1,7 +1,6 @@
 package game.model;
 
 import enums.PlayerColor;
-import game.player.Player;
 
 public class Stone {
 

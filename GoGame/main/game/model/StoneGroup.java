@@ -3,14 +3,18 @@ package game.model;
 import java.util.HashSet;
 import java.util.Set;
 
+import enums.PlayerColor;
+
 public class StoneGroup {
 
 	private Set<Stone> stones;
 	private int remainingLiberties;
+	private PlayerColor owner;
 	
 	public StoneGroup(Stone stone) {
 		stones = new HashSet<Stone>();
 		stones.add(stone);
+		owner = stone.getOwner();
 	}
 
 	public boolean contains(Stone stone) {
@@ -57,6 +61,10 @@ public class StoneGroup {
 		}
 		smallerGroup.stones.clear();
 		return largerGroup;
+	}
+
+	public PlayerColor getOwner() {
+		return owner;
 	}
 
 	@Override

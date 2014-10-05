@@ -1,6 +1,7 @@
 package game.model;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -13,8 +14,9 @@ import exception.MoveException;
 import game.player.HumanPlayer;
 import game.player.Player;
 
-public class Board {
+public class Board implements Cloneable, Serializable {
 
+	private static final long serialVersionUID = 5015033032045544470L;
 	private Intersection[][] intersections; //y, x
 	public static final int DEFAULT_BOARD_SIZE = 9;
 	
@@ -22,6 +24,7 @@ public class Board {
 	private Map<PlayerColor, Integer> stonesCaptured;
 	
 	private Set<StoneGroup> activeStoneGroups;
+	private Map<PlayerColor, Integer> currentScore = null;
 
 	public Board(Integer size){
 		this.boardSize = size < 3 || size > DEFAULT_BOARD_SIZE ? DEFAULT_BOARD_SIZE : size;
@@ -47,18 +50,25 @@ public class Board {
 		stonesCaptured.put(PlayerColor.WHITE, 0);
 	}
 	
-	public void makeMove(Move move, PlayerColor player) throws MoveException{
+	/**
+	 * @param move - the request move
+	 * @param player - the player who requested the move
+	 * @return - a set of stones that were captured as a result of this move
+	 * @throws MoveException
+	 */
+	public Set<Stone> makeMove(Move move, PlayerColor player) throws MoveException{
 		if (isLegalMove(move, player)){
 			addStone(move.getX(), move.getY(), player);
-			doCaptures(move.getX(), move.getY(), player);
+			Set<Stone> captureStones = doCaptures(move.getX(), move.getY(), player);
+			currentScore = null;
+			return captureStones;
 		} else {
 			throw new MoveException("Invalid move");
 		}
 	
 	}
 
-	//for now assume we won't be so stupid as to self capture
-	private void doCaptures(int x, int y, PlayerColor player) {
+	private Set<Stone> doCaptures(int x, int y, PlayerColor player) {
 		Set<StoneGroup> toBeCaptured = new HashSet<>();
 		for (Intersection neighbor : intersections[y][x].getNeighbors()){
 			if (neighbor.isOccupied()){
@@ -70,6 +80,11 @@ public class Board {
 			}
 		}
 		
+		return doCaptureGroups(player, toBeCaptured);
+	}
+
+	private Set<Stone> doCaptureGroups(PlayerColor player,
+			Set<StoneGroup> toBeCaptured) {
 		Set<Stone> capturedStones = new HashSet<Stone>();
 		for (StoneGroup group : toBeCaptured){
 			Set<Stone> stones = group.getStones();
@@ -85,6 +100,7 @@ public class Board {
 		
 		//obviously inefficient, make this faster eventually
 		recalculateAllLiberties();
+		return capturedStones;
 	}
 
 	private void recalculateAllLiberties() {
@@ -140,8 +156,12 @@ public class Board {
 				if (!neighbor.isOccupied()){
 					isSelfCapture = false;
 					break;
-				} else if (neighbor.getOccupant().getOwner().equals(player) && 
-						neighbor.getOccupant().getGroup().getRemainingLiberties() > 1){
+				} 
+				boolean isNotSelfCapture = neighbor.getOccupant().getOwner().equals(player) && 
+						neighbor.getOccupant().getGroup().getRemainingLiberties() > 1;
+				boolean enemyIsCapturedFirst = !neighbor.getOccupant().getOwner().equals(player) && 
+						neighbor.getOccupant().getGroup().getRemainingLiberties() == 1;
+				if ( isNotSelfCapture || enemyIsCapturedFirst ){
 						isSelfCapture = false;
 						break;
 				}
@@ -150,7 +170,7 @@ public class Board {
 		return legalLocation && !isSelfCapture;
 	}
 	
-	public static Board fromString(String s) throws IOException, MoveException {
+	public static Board deserialize(String s) throws IOException, MoveException {
 		String[] lines = s.split("\n");
 		for (String line : lines){
 			if (line.length() != lines.length){
@@ -163,9 +183,9 @@ public class Board {
 		for (int i = 0; i<lines.length; i++){
 			for (int j = 0; j<lines.length; j++){
 				if (lines[i].charAt(j) == 'B'){
-					board.makeMove(new Move(MoveType.NORMAL, j, i), black.getColor());
+					board.makeMove(Move.getMoveInstance(MoveType.NORMAL, j, i), black.getColor());
 				} else if (lines[i].charAt(j) == 'W'){
-					board.makeMove(new Move(MoveType.NORMAL, j, i), white.getColor());
+					board.makeMove(Move.getMoveInstance(MoveType.NORMAL, j, i), white.getColor());
 				}
 			}
 		}
@@ -192,9 +212,14 @@ public class Board {
 	}
 	
 	public Map<PlayerColor, Integer> getScore() {
+		
+		if (currentScore != null){
+			return currentScore;
+		}
+		
 		boolean[][] visited = new boolean[boardSize][boardSize];
 		Stack<Intersection> territoryStack = new Stack<>();
-		Map<PlayerColor, Integer> currentScore = new HashMap<>();
+		currentScore = new HashMap<>();
 		currentScore.put(PlayerColor.WHITE, 0);
 		currentScore.put(PlayerColor.BLACK, 0);
 		for (StoneGroup group : activeStoneGroups){
@@ -244,16 +269,15 @@ public class Board {
 			boardString.append(" " + i);
 		}
 		boardString.append("\n");
-		for (int i = 0; i<boardSize; i++){
-			StringBuilder line = new StringBuilder();
-			for (int j = 0; j<boardSize; j++){
-				if (intersections[i][j].isOccupied()){
-					line.append(intersections[i][j].getOccupant().getOwner().equals(PlayerColor.BLACK) ? " B" : " W");
-				} else {
-					line.append(" +");
-				}
+		String[] rows = this.serialize().split("\n");
+		int i=0;
+		for (String line : rows){
+			StringBuilder withSpaces = new StringBuilder();
+			for (char c : line.toCharArray()){
+				withSpaces.append(c == ' ' ? c : " " + c);
 			}
-			boardString.append(line.toString() + " " + i + "\n");
+			boardString.append(withSpaces.toString() + " " + i + "\n");
+			i++;
 		}
 		
 		return "Board [board looks like:\n" + boardString.toString()
@@ -263,6 +287,59 @@ public class Board {
 	
 	public int getStonesCaptures(PlayerColor playerColor){
 		return stonesCaptured.get(playerColor);
+	}
+	
+	public String serialize() {
+		StringBuilder boardString = new StringBuilder();
+		String end = "";
+		for (int i = 0; i<boardSize; i++){
+			StringBuilder line = new StringBuilder();
+			for (int j = 0; j<boardSize; j++){
+				if (intersections[i][j].isOccupied()){
+					line.append(intersections[i][j].getOccupant().getOwner().equals(PlayerColor.BLACK) ? "B" : "W");
+				} else {
+					line.append("+");
+				}
+			}
+			boardString.append(end + line.toString());
+			end = "\n";
+		}
+		return boardString.toString();
+	}
+
+	@Override
+	public Board clone(){
+		String s = this.serialize();
+		try {
+			return Board.deserialize(s);
+		} catch (IOException | MoveException e) {
+			return null;
+		}
+	}
+
+	public void captureDeadGroups() {
+		//eventually do Bensen's but for now, be stupid and delete 
+		//anything that only has a single liberty, assume this will
+		//only be called when there are no more valid moves
+		Set<StoneGroup> blackToBeCaptured = new HashSet<>();
+		Set<StoneGroup> whiteToBeCaptured = new HashSet<>();
+		for (StoneGroup group : activeStoneGroups){
+			if (group.getRemainingLiberties() == 1){
+				if (group.getOwner().equals(PlayerColor.WHITE)){
+					whiteToBeCaptured.add(group);
+				} else {
+					blackToBeCaptured.add(group);
+				}
+			}
+		}
+		
+		doCaptureGroups(PlayerColor.BLACK, blackToBeCaptured);
+		doCaptureGroups(PlayerColor.WHITE, whiteToBeCaptured);
+	}
+	
+	//TODO: needed for ko by GameState, is there a better way?
+	public Integer getStoneGroupLibertiesAtLocation(Integer x, Integer y){
+		return intersections[y][x].getOccupant().getGroup().getRemainingLiberties();
 	}
 	
 }

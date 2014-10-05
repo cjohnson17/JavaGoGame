@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
+import app.GameState;
 import enums.MoveType;
 import enums.PlayerColor;
 import game.model.Board;
@@ -18,22 +19,17 @@ public class SimpleComputerPlayer extends Player {
 	}
 
 	@Override
-	public Move getMove(Board board) {
+	public Move getMove(GameState state) {
 		if (randomMoveList == null){
-			randomMoveList = new ArrayList<>(board.getBoardSize() * board.getBoardSize());
-			for (int i = 0; i < board.getBoardSize(); i++){
-				for (int j = 0; j < board.getBoardSize(); j++){
-					randomMoveList.add(new Move(MoveType.NORMAL, i, j));
-				}
-			}
+			randomMoveList = new ArrayList(state.getPossibleMoves(color));
 			Collections.shuffle(randomMoveList);
 		}
 		
 		if (randomMoveList.size() == 0){
-			return new Move(MoveType.PASS, null, null);
+			return Move.getMoveInstance(MoveType.PASS, 0, 0);
 		}
 		Move next = randomMoveList.remove(0);
-		while (!board.isLegalMove(next, this.getColor())){
+		while (!state.isLegalMove(next, color)){
 			next = randomMoveList.remove(0);
 		}
 		return next;	

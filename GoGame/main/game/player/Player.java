@@ -1,5 +1,6 @@
 package game.player;
 
+import app.GameState;
 import enums.PlayerColor;
 import game.model.Board;
 import game.model.Move;
@@ -12,7 +13,7 @@ public abstract class Player {
 		this.color = color;
 	}
 	
-	public abstract Move getMove(Board board);
+	public abstract Move getMove(GameState state);
 
 	public PlayerColor getColor() {
 		return color;
