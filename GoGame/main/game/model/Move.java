@@ -15,6 +15,15 @@ public class Move {
 	
 	private static Map<MoveType, Move[][]> moves;
 	
+	/**
+	 * Since moves are extremely common, it would be inefficient to continually create them.
+	 * Instead, all moves are originally created and then references to them are passed around
+	 * @param type 	the type of move
+	 * @param x		the x location of the desired move
+	 * @param y		the y location of the desired move
+	 * @return
+	 */
+	
 	public static Move getMoveInstance(MoveType type, int x, int y){
 		if (moves == null){
 			moves = new HashMap<>();
@@ -56,26 +65,7 @@ public class Move {
 
 	@Override
 	public boolean equals(Object obj) {
-		if (this == obj)
-			return true;
-		if (obj == null)
-			return false;
-		if (getClass() != obj.getClass())
-			return false;
-		Move other = (Move) obj;
-		if (type != other.type)
-			return false;
-		if (x == null) {
-			if (other.x != null)
-				return false;
-		} else if (!x.equals(other.x))
-			return false;
-		if (y == null) {
-			if (other.y != null)
-				return false;
-		} else if (!y.equals(other.y))
-			return false;
-		return true;
+		return this == obj;
 	}
 	
 	@Override

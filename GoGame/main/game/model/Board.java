@@ -51,15 +51,15 @@ public class Board implements Cloneable, Serializable {
 	}
 	
 	/**
-	 * @param move - the request move
-	 * @param player - the player who requested the move
-	 * @return - a set of stones that were captured as a result of this move
+	 * @param move 		the request move
+	 * @param player	the player who requested the move
+	 * @return 			a set of stones that were captured as a result of this move
 	 * @throws MoveException
 	 */
 	public Set<Stone> makeMove(Move move, PlayerColor player) throws MoveException{
 		if (isLegalMove(move, player)){
 			addStone(move.getX(), move.getY(), player);
-			Set<Stone> captureStones = doCaptures(move.getX(), move.getY(), player);
+			Set<Stone> captureStones = doCaptures(move, player);
 			currentScore = null;
 			return captureStones;
 		} else {
@@ -68,9 +68,15 @@ public class Board implements Cloneable, Serializable {
 	
 	}
 
-	private Set<Stone> doCaptures(int x, int y, PlayerColor player) {
+	/**
+	 * Find which groups should be captured as a result of the move, capture them, and update liberties of stone groups
+	 * @param move		the move just done
+	 * @param player	the player color who played this move
+	 * @return
+	 */
+	private Set<Stone> doCaptures(Move move, PlayerColor player) {
 		Set<StoneGroup> toBeCaptured = new HashSet<>();
-		for (Intersection neighbor : intersections[y][x].getNeighbors()){
+		for (Intersection neighbor : intersections[move.getY()][move.getX()].getNeighbors()){
 			if (neighbor.isOccupied()){
 				boolean isOtherPlayer = player != neighbor.getOccupant().getOwner();
 				StoneGroup neighborStoneGroup = neighbor.getOccupant().getGroup();
@@ -80,9 +86,18 @@ public class Board implements Cloneable, Serializable {
 			}
 		}
 		
-		return doCaptureGroups(player, toBeCaptured);
+		Set<Stone> captured = doCaptureGroups(player, toBeCaptured);
+		//obviously inefficient, make this faster eventually
+		recalculateAllLiberties();
+		return captured;
 	}
 
+	/**
+	 * Do the actual capture logic
+	 * @param player
+	 * @param toBeCaptured
+	 * @return
+	 */
 	private Set<Stone> doCaptureGroups(PlayerColor player,
 			Set<StoneGroup> toBeCaptured) {
 		Set<Stone> capturedStones = new HashSet<Stone>();
@@ -93,16 +108,21 @@ public class Board implements Cloneable, Serializable {
 				stone.setGroup(null);
 			}
 			capturedStones.addAll(stones);
+			for (StoneGroup neighboringStoneGroup : group.getSurroundingStoneGroups()){
+				neighboringStoneGroup.removeSurroundingStoneGroups(group);
+			}
+			group.getSurroundingStoneGroups().clear();
 			activeStoneGroups.remove(group);
 		}
 		
 		stonesCaptured.put(player, stonesCaptured.get(player) + capturedStones.size());
 		
-		//obviously inefficient, make this faster eventually
-		recalculateAllLiberties();
 		return capturedStones;
 	}
 
+	/**
+	 * An inefficient method of recalculating the liberities after every move. Recalculates entire board
+	 */
 	private void recalculateAllLiberties() {
 		Set<StoneGroup> activeStoneGroups = getActiveStoneGroups();
 		for (StoneGroup group : activeStoneGroups){
@@ -114,7 +134,7 @@ public class Board implements Cloneable, Serializable {
 					}
 				}
 			}
-			group.setRemainingLiberties(liberties.size());
+			group.setLiberties(liberties);
 		}
 	}
 
@@ -122,6 +142,12 @@ public class Board implements Cloneable, Serializable {
 		return activeStoneGroups;
 	}
 
+	/**
+	 * Add a stone at the requested location on the board
+	 * @param x			The x location on the board to add a stone
+	 * @param y			The y location on the board to add a stone
+	 * @param player	The player who is placing the stone
+	 */
 	private void addStone(int x, int y, PlayerColor player) {
 		Stone newStone = new Stone(x,y,player);
 		intersections[y][x].setOccupant(newStone);
@@ -137,8 +163,17 @@ public class Board implements Cloneable, Serializable {
 			}
 		}
 		
+		//wait till after new stone group is finalized
+		for (Intersection i : intersections[y][x].getNeighbors()){
+			if (i.isOccupied() && !i.getOccupant().getOwner().equals(player)){
+				newStone.getGroup().addSurroundingStoneGroups(i.getOccupant().getGroup());
+				i.getOccupant().getGroup().addSurroundingStoneGroups(newStone.getGroup());
+			}
+		}
+		
 		oldGroups.remove(newStone.getGroup());
 		activeStoneGroups.removeAll(oldGroups);
+		
 		
 		if (newStoneIsUnconnected){
 			activeStoneGroups.add(newStone.getGroup());
@@ -146,6 +181,12 @@ public class Board implements Cloneable, Serializable {
 		
 	}
 
+	/**
+	 * Returns whether or not the request move is legal
+	 * @param move		the move to check
+	 * @param player	the player who is playing the move
+	 * @return			if move is a valid board position and not a self capture
+	 */
 	public boolean isLegalMove(Move move, PlayerColor player) {
 		int x = move.getX();
 		int y = move.getY();
@@ -170,6 +211,15 @@ public class Board implements Cloneable, Serializable {
 		return legalLocation && !isSelfCapture;
 	}
 	
+	/**
+	 * Convert the given string into a valid board. Makes no assumptions on validity of board position. 
+	 * For example, if a stone has zero liberties, the board will be created with that stone captured, 
+	 * so then s would not equal Board.deserialize(s).serialize()
+	 * @param s
+	 * @return
+	 * @throws IOException
+	 * @throws MoveException
+	 */
 	public static Board deserialize(String s) throws IOException, MoveException {
 		String[] lines = s.split("\n");
 		for (String line : lines){
@@ -193,6 +243,10 @@ public class Board implements Cloneable, Serializable {
 		return board;
 	}
 	
+	/**
+	 * @return 	True if all territory is enclosed, false otherwise (useful for checking if the game is over
+	 * 			or if there can be more pieces captured
+	 */
 	public boolean allTerritoryIsEnclosed() {
 		boolean[][] visited = new boolean[boardSize][boardSize];
 		Stack<Intersection> territoryStack = new Stack<>();
@@ -211,8 +265,14 @@ public class Board implements Cloneable, Serializable {
 		return true;
 	}
 	
+	/**
+	 * Get the current score (only counts territory that is completely surrounded with no enemy stones in it
+	 * @return	A map of what score each player has
+	 */
 	public Map<PlayerColor, Integer> getScore() {
 		
+		//cache current score, will be even more useful in the future when score is calculated as an influence map
+		//instead of empty territory (i.e. when territory does not have to be 100% enclosed to be considered territory
 		if (currentScore != null){
 			return currentScore;
 		}
@@ -337,9 +397,50 @@ public class Board implements Cloneable, Serializable {
 		doCaptureGroups(PlayerColor.WHITE, whiteToBeCaptured);
 	}
 	
-	//TODO: needed for ko by GameState, is there a better way?
 	public Integer getStoneGroupLibertiesAtLocation(Integer x, Integer y){
 		return intersections[y][x].getOccupant().getGroup().getRemainingLiberties();
+	}
+
+	public boolean isEye(Move move, PlayerColor color) {
+		StoneGroup group = null;
+		if (!isLegalMove(move, color)){
+			return false;
+		}
+		for (Intersection neighbor : intersections[move.getY()][move.getX()].getNeighbors()){
+			if (neighbor.getOccupant() != null){
+				if (group == null){
+					group = neighbor.getOccupant().getGroup();
+				} else {
+					if (!group.equals(neighbor.getOccupant().getGroup())){
+						return false;
+					}
+				}
+			} else {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	public Set<StoneGroup> getGroupsInAtari() {
+		Set<StoneGroup> stones = new HashSet<>();
+		for (StoneGroup group : activeStoneGroups){
+			if (group.getRemainingLiberties()==1){
+				stones.add(group);
+			}
+		}
+		return stones;
+	}
+
+	public StoneGroup getStoneGroupAt(Move move) {
+		if (move == null)
+			return null;
+		Intersection i = intersections[move.getY()][move.getX()];
+		if (i.isOccupied()){
+			return i.getOccupant().getGroup();
+		} else {
+			return null;
+		}
 	}
 	
 }

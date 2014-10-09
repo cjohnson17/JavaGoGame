@@ -8,13 +8,16 @@ import enums.PlayerColor;
 public class StoneGroup {
 
 	private Set<Stone> stones;
-	private int remainingLiberties;
+	private Set<Intersection> liberties;
+	private Set<StoneGroup> surroundingStoneGroups;
 	private PlayerColor owner;
 	
 	public StoneGroup(Stone stone) {
 		stones = new HashSet<Stone>();
 		stones.add(stone);
 		owner = stone.getOwner();
+		liberties = new HashSet<Intersection>();
+		surroundingStoneGroups = new HashSet<>();
 	}
 
 	public boolean contains(Stone stone) {
@@ -36,12 +39,28 @@ public class StoneGroup {
 		return stones.contains(newStone);
 	}
 
-	public int getRemainingLiberties() {
-		return remainingLiberties;
+	public Integer getRemainingLiberties() {
+		return liberties.size();
 	}
 
-	public void setRemainingLiberties(int remainingLiberties) {
-		this.remainingLiberties = remainingLiberties;
+	public Set<Intersection> getLiberties() {
+		return liberties;
+	}
+
+	public void setLiberties(Set<Intersection> liberties) {
+		this.liberties = liberties;
+	}
+
+	public void removeSurroundingStoneGroups(StoneGroup surroundingStoneGroup) {
+		surroundingStoneGroups.remove(surroundingStoneGroup);
+	}
+	
+	public Set<StoneGroup> getSurroundingStoneGroups() {
+		return surroundingStoneGroups;
+	}
+
+	public void addSurroundingStoneGroups(StoneGroup surroundingStoneGroup) {
+		surroundingStoneGroups.add(surroundingStoneGroup);
 	}
 
 	public Set<Stone> getStones() {
@@ -52,6 +71,12 @@ public class StoneGroup {
 		return stones.size();
 	}
 	
+	/**
+	 * Combines two StoneGroups together. The smaller group (fewer stones) is "destroyed",
+	 * and all the stones that were in the smaller group are put into the larger group
+	 * @param otherGroup	the group to be merged
+	 * @return				the group that now holds all the stones
+	 */
 	public StoneGroup merge(StoneGroup otherGroup) {
 		StoneGroup largerGroup = this.size() > otherGroup.size() ? this : otherGroup;
 		StoneGroup smallerGroup = largerGroup == this ? otherGroup : this;
@@ -70,7 +95,7 @@ public class StoneGroup {
 	@Override
 	public String toString() {
 		return "StoneGroup [stones=" + stones + ", remainingLiberties="
-				+ remainingLiberties + "]";
+				+ getRemainingLiberties() + "]";
 	}
 	
 	

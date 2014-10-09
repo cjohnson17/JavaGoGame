@@ -1,12 +1,15 @@
 package game.player;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.Random;
 import java.util.Set;
 
+import app.AppRunner;
 import app.GameState;
 import enums.MoveType;
 import enums.PlayerColor;
@@ -19,9 +22,11 @@ public class MCTSNode {
 	private double wins;
 	private double visits;
 	private PlayerColor playerJustMoved;
-	private List<Move> untriedMoves;
+	private Set<Move> untriedMoves;
 	
-	private static final float UCTK = 1.0f;
+	private static final double epsilon = 1e-6;
+	
+	private static final Random random = new Random();
 	
 	
 	public MCTSNode(Move move, MCTSNode parent, GameState state){
@@ -31,25 +36,48 @@ public class MCTSNode {
 		visits = 0;
 		playerJustMoved = state.getLastMoved().getColor();
 		untriedMoves = state.getPossibleMoves(PlayerColor.BLACK.equals(playerJustMoved) ? PlayerColor.WHITE : PlayerColor.BLACK);
-		children = new LinkedList<>();
+		children = new ArrayList<>();
 	}
 	
+	/**
+	 * Select the best child based on Upper Confidence Bound. This balances exploration (nodes not
+	 * traveled very often) and exploitation (nodes that are known to have a high win ratio)
+	 * @return The optimal node to playout
+	 */
 	public MCTSNode UCTSelectChild() {
 		MCTSNode selected = null;
-		double best=Double.MIN_VALUE;
+		double best = -1;
 		for (MCTSNode node : children){
 			if (node.getMove().getType().equals(MoveType.PASS) && selected == null){
 				selected = node;
 			} else {
-				double uctValue = node.wins/node.visits + UCTK*Math.sqrt(2*Math.log(this.visits)/node.visits);
+				//disincentivize playing on the edges
+				double ratio;
+				if (node.getMove().getX()==0 || node.getMove().getY()==0 || 
+						node.getMove().getX() == AppRunner.BOARD_SIZE-1 || 
+						node.getMove().getY() == AppRunner.BOARD_SIZE-1){
+					ratio = Math.max(0, (node.wins - 6.1)/(epsilon + node.visits));
+				} else {
+					ratio = node.wins/(epsilon + node.visits);
+				}
+				double V = Math.max(.001, ratio * (1-ratio));
+				V = 1;
+				double uctValue = ratio + Math.sqrt(V*Math.log(this.visits + 1)/(epsilon + node.visits)) + random.nextDouble()*epsilon;
 				if (uctValue > best){
 					selected = node;
+					best = uctValue;
 				}
 			}
 		}
 		return selected;
 	}
 	
+	/**
+	 * Transfer the node representing the move [that was just played] from the untried bucket to the tried bucket
+	 * @param 	move 	the move that was just played
+	 * @param 	state 	the current state of the game (with move just played)
+	 * @return 			the child node
+	 */
 	public MCTSNode addChild(Move move, GameState state){
 		untriedMoves.remove(move);
 		MCTSNode node = new MCTSNode(move, this, state);
@@ -110,8 +138,14 @@ public class MCTSNode {
 		this.playerJustMoved = playerJustMoved;
 	}
 
-	public List<Move> getUntriedMoves() {
+	public Set<Move> getUntriedMoves() {
 		return untriedMoves;
+	}
+
+	@Override
+	public String toString() {
+		return "MCTSNode [move=" + move + ", wins=" + wins + ", visits="
+				+ visits + "]";
 	}
 
 }

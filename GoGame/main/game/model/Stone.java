@@ -4,7 +4,12 @@ import enums.PlayerColor;
 
 public class Stone {
 
+	//the color of this stone
 	private PlayerColor owner;
+	
+	//The group of stones this stone is connected to. A single stone is in a group that only contains 
+	//itself. Note this relationship is bi-directional, so make sure to correctly update references
+	//when adding or deleting stones to a group
 	private StoneGroup group;
 	public int x_location;
 	public int y_location;

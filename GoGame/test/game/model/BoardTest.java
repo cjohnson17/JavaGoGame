@@ -82,5 +82,22 @@ public class BoardTest {
 		assertEquals(new Integer(-6), b.getScore().get(PlayerColor.BLACK));
 		assertEquals(6, captured.size());
 	}
+	
+	@Test
+	public void testIsEye() throws IOException, MoveException {
+		String in = 
+				"+W+W+\n" +
+				"WW++W\n" +
+				"+++++\n" +
+				"BBB++\n" +
+				"++B++";
+		Board b =  Board.deserialize(in);
+		assertTrue(b.isEye(Move.getMoveInstance(MoveType.PASS, 0, 0), white.getColor()));
+		
+		assertFalse(b.isEye(Move.getMoveInstance(MoveType.PASS, 4, 0), white.getColor()));
+		assertFalse(b.isEye(Move.getMoveInstance(MoveType.PASS, 0, 4), black.getColor()));
+		assertFalse(b.isEye(Move.getMoveInstance(MoveType.PASS, 0, 4), white.getColor()));
+		assertFalse(b.isEye(Move.getMoveInstance(MoveType.PASS, 2, 2), white.getColor()));
+	}
 
 }

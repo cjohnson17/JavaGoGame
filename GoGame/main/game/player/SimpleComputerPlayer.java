@@ -20,7 +20,7 @@ public class SimpleComputerPlayer extends Player {
 
 	@Override
 	public Move getMove(GameState state) {
-		if (randomMoveList == null){
+		if (randomMoveList == null || randomMoveList.size() == 0){
 			randomMoveList = new ArrayList(state.getPossibleMoves(color));
 			Collections.shuffle(randomMoveList);
 		}
@@ -28,10 +28,13 @@ public class SimpleComputerPlayer extends Player {
 		if (randomMoveList.size() == 0){
 			return Move.getMoveInstance(MoveType.PASS, 0, 0);
 		}
-		Move next = randomMoveList.remove(0);
-		while (!state.isLegalMove(next, color)){
+		Move next;
+		do {
+			if (randomMoveList.isEmpty()){
+				return Move.getMoveInstance(MoveType.PASS, 0, 0);
+			}
 			next = randomMoveList.remove(0);
-		}
+		} while (!state.isLegalMove(next, color));
 		return next;	
 	}
 
